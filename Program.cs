@@ -7,26 +7,31 @@ class Program
 {
     static void Main(string[] args)
     {
-        if (args.Length != 3)
+        if (args.Length != 2)
         {
-            Console.WriteLine("Usage: mssql-pg-migration <source> <target> <database>");
+            Console.WriteLine("Usage: mssql-pg-migration <source> <target>");
             return;
         }
 
         var source = args[0];
         var target = args[1];
-        var database = args[2];
 
-        // Inject database name into connection strings
-        var sourceBuilder = new SqlConnectionStringBuilder(source) { InitialCatalog = database };
-        source = sourceBuilder.ConnectionString;
+        // Extract database name from source connection string
+        var sourceBuilder = new SqlConnectionStringBuilder(source);
+        var database = sourceBuilder.InitialCatalog;
 
-        var targetBuilder = new NpgsqlConnectionStringBuilder(target) { Database = database };
-        target = targetBuilder.ConnectionString;
+        if (string.IsNullOrEmpty(database))
+        {
+            Console.WriteLine("Error: Source connection string must include a Database (Initial Catalog).");
+            return;
+        }
 
         Console.WriteLine($"Source: {source}");
         Console.WriteLine($"Target: {target}");
         Console.WriteLine($"Database: {database}");
+
+        // Create target database if it doesn't exist
+        EnsureTargetDatabaseExists(target, database);
 
         Console.WriteLine("Creating all tables...");
         CreateAllTables(source, target, database);
@@ -38,6 +43,31 @@ class Program
         // Copy views
         Console.WriteLine("\nCreating views...");
         CopyViews(source, target, database);
+    }
+
+    static void EnsureTargetDatabaseExists(string target, string database)
+    {
+        // Connect to the default 'postgres' database to check/create the target database
+        var builder = new NpgsqlConnectionStringBuilder(target) { Database = "postgres" };
+        using var connection = new NpgsqlConnection(builder.ConnectionString);
+        connection.Open();
+
+        var checkQuery = "SELECT 1 FROM pg_database WHERE datname = @dbname";
+        using var checkCmd = new NpgsqlCommand(checkQuery, connection);
+        checkCmd.Parameters.AddWithValue("@dbname", database);
+        var exists = checkCmd.ExecuteScalar() != null;
+
+        if (!exists)
+        {
+            // Database names can't be parameterized in CREATE DATABASE
+            using var createCmd = new NpgsqlCommand($"CREATE DATABASE \"{database}\"", connection);
+            createCmd.ExecuteNonQuery();
+            Console.WriteLine($"Database '{database}' created in target server.");
+        }
+        else
+        {
+            Console.WriteLine($"Database '{database}' already exists in target server.");
+        }
     }
 
     static void CreateAllTables(string source, string target, string database)

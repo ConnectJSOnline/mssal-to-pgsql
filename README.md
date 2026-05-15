@@ -10,21 +10,22 @@ A .NET CLI tool to migrate database schema (tables, foreign keys, and views) fro
 ## Usage
 
 ```bash
-dotnet run -- "<mssql-connection-string>" "<pg-connection-string>" "<database>"
+dotnet run -- "<mssql-connection-string>" "<pg-connection-string>"
 ```
 
 ### Parameters
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `source` | Yes | MSSQL connection string (key-value format) |
-| `target` | Yes | PostgreSQL connection string (key-value format) |
-| `database` | Yes | Database name (applied to both source and target) |
+| `source` | Yes | MSSQL connection string (must include `Database=...`) |
+| `target` | Yes | PostgreSQL connection string (must include `Database=...`) |
+
+The database name is read from the connection strings directly.
 
 ### Example
 
 ```bash
-dotnet run -- "Server=myserver,1433;user=sa;password=pass;TrustServerCertificate=True" "Host=pgserver;Port=5432;Username=postgres;Password=pass" "my-database"
+dotnet run -- "Server=myserver,1433;Database=mydb;user=sa;password=pass;TrustServerCertificate=True" "Host=pgserver;Port=5432;Database=mydb;Username=postgres;Password=pass"
 ```
 
 
@@ -82,7 +83,7 @@ dotnet run -- "Server=myserver,1433;user=sa;password=pass;TrustServerCertificate
 - The tool is **idempotent** — running it multiple times will skip already-existing objects.
 - Data migration is **not included** — this tool only migrates schema.
 - An implicit cast (`integer → varchar`) is created in the target database to handle MSSQL's implicit type conversions in views.
-- The `database` parameter overrides any database specified in the connection strings.
+- The `database` name is extracted from the source MSSQL connection string.
 
 ## License
 
